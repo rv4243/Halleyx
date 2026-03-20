@@ -37,6 +37,13 @@ async function runEngineLoop(executionId) {
           execution.status = 'paused';
           execution.current_step_id = currentStep._id;
           await execution.save();
+          
+          try {
+              await sendNotification('email', currentStep.metadata, execution.data);
+          } catch (e) {
+              console.log("Approval Mock Notification:", e.message);
+          }
+
           frontendLogs.push({
               stepId: currentStep._id,
               stepName: currentStep.name,
@@ -44,7 +51,7 @@ async function runEngineLoop(executionId) {
               status: 'paused',
               timestamp: new Date()
           });
-          return { status: 'paused', logs: frontendLogs };
+          return { executionId: execution._id, status: 'paused', logs: frontendLogs };
       }
 
       if (execution.status === 'resuming_approval') {
@@ -54,11 +61,11 @@ async function runEngineLoop(executionId) {
       let nextStepId = null;
       let decisionStr = "Workflow Finished";
       
-      if (currentStep.step_type === 'notification' || currentStep.step_type === 'approval') {
+      if (currentStep.step_type === 'notification') {
         try {
             await sendNotification('email', currentStep.metadata, execution.data);
         } catch (e) {
-            console.log("Mock Notification:", e.message);
+            console.log("Notification Step Mock:", e.message);
         }
       }
 
@@ -141,7 +148,7 @@ async function runEngineLoop(executionId) {
     execution.current_step_id = null;
     await execution.save();
     
-    return { status: execution.status, logs: frontendLogs };
+    return { executionId: execution._id, status: execution.status, logs: frontendLogs };
 }
 
 /**
@@ -186,14 +193,21 @@ router.get('/api/admin/executions/pending', async (req, res) => {
             .populate('current_step_id', 'name metadata')
             .lean();
 
-        let formatted = executions.map(ex => ({
-            id: ex._id,
-            workflowName: ex.workflow_id ? ex.workflow_id.name : 'Unknown',
-            stepName: ex.current_step_id ? ex.current_step_id.name : 'Unknown Step',
-            assigneeEmail: ex.current_step_id && ex.current_step_id.metadata ? ex.current_step_id.metadata.assignee_email : null,
-            data: ex.data,
-            startedAt: ex.started_at
-        }));
+        let formatted = executions.map(ex => {
+            let assigneeEmail = ex.current_step_id && ex.current_step_id.metadata ? ex.current_step_id.metadata.assignee_email : null;
+            if (assigneeEmail && assigneeEmail.startsWith('$')) {
+                const varName = assigneeEmail.substring(1);
+                assigneeEmail = ex.data ? ex.data[varName] : null;
+            }
+            return {
+                id: ex._id,
+                workflowName: ex.workflow_id ? ex.workflow_id.name : 'Unknown',
+                stepName: ex.current_step_id ? ex.current_step_id.name : 'Unknown Step',
+                assigneeEmail: assigneeEmail,
+                data: ex.data,
+                startedAt: ex.started_at
+            };
+        });
 
         if (req.query.email) {
             const searchEmail = req.query.email.toLowerCase();

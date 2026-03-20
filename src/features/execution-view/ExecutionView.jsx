@@ -14,6 +14,7 @@ const ExecutionView = () => {
   const [inputSchema, setInputSchema] = useState({});
   const [executionLogs, setLogs] = useState([]);
   const [currentStatus, setCurrentStatus] = useState('pending');
+  const [currentExecutionId, setCurrentExecutionId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -58,6 +59,50 @@ const ExecutionView = () => {
     loadData();
   }, [id]);
 
+  useEffect(() => {
+    let interval;
+    if (currentExecutionId && (currentStatus === 'paused' || currentStatus === 'in_progress' || currentStatus === 'resuming_approval')) {
+        interval = setInterval(async () => {
+            try {
+                const res = await axios.get(`http://localhost:5000/api/executions/${currentExecutionId}`);
+                const { execution, logs: dbLogs } = res.data;
+                
+                const mappedLogs = dbLogs.map(log => {
+                   let decisionStr = log.selected_next_step ? `Moving to next step` : `Workflow Finished`;
+                   return {
+                       stepId: log.step_id?._id || log.step_id,
+                       stepName: log.step_name || 'Unknown Step',
+                       decision: decisionStr,
+                       status: log.status,
+                       timestamp: log.started_at
+                   };
+                });
+                
+                if (execution.status === 'paused') {
+                    mappedLogs.push({
+                        stepId: execution.current_step_id?._id || execution.current_step_id,
+                        stepName: execution.current_step_id?.name || 'Approval Step',
+                        decision: "Execution Paused: Waiting for Admin Approval",
+                        status: 'paused',
+                        timestamp: new Date()
+                    });
+                }
+                
+                setLogs(mappedLogs);
+                setCurrentStatus(execution.status);
+                highlightPath(mappedLogs);
+                
+                if (execution.status === 'completed' || execution.status === 'failed') {
+                    clearInterval(interval);
+                }
+            } catch (err) {
+                console.error("Polling error:", err);
+            }
+        }, 3000);
+    }
+    return () => clearInterval(interval);
+  }, [currentExecutionId, currentStatus]);
+
   const runWorkflow = async (formData) => {
     setCurrentStatus('in_progress');
     try {
@@ -65,8 +110,11 @@ const ExecutionView = () => {
         inputData: formData
       });
       
-      const { logs, status } = response.data;
+      const { logs, status, executionId } = response.data;
       
+      if (executionId) {
+          setCurrentExecutionId(executionId);
+      }
       setLogs(logs);
       setCurrentStatus(status);
       highlightPath(logs);

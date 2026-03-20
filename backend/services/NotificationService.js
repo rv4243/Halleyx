@@ -12,17 +12,23 @@ const transporter = nodemailer.createTransport({
 
 const sendNotification = async (type, metadata, data) => {
   if (type === 'email') {
+    let targetEmail = metadata.assignee_email;
+    if (targetEmail && targetEmail.startsWith('$')) {
+        const varName = targetEmail.substring(1);
+        targetEmail = data[varName];
+    }
+
     if (!process.env.EMAIL_HOST) {
-        console.log("Mocking email send (no SMTP configured): sent to", metadata.assignee_email);
+        console.log("Mocking email send (no SMTP configured): sent to", targetEmail);
         return Promise.resolve(true);
     }
     const mailOptions = {
       from: '"Workflow Engine" <no-reply@your-saas.com>',
-      to: metadata.assignee_email,
+      to: targetEmail,
       subject: `Action Required: ${metadata.subject || 'Workflow Update'}`,
       html: `<p>A workflow requires your attention.</p>
              <p><strong>Details:</strong> ${JSON.stringify(data)}</p>
-             <a href="http://localhost:3000/approvals">View in Dashboard</a>`
+             <a href="http://localhost:3000/admin">View in Inbox</a>`
     };
 
     return transporter.sendMail(mailOptions);
