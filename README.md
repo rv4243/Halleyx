@@ -264,6 +264,6 @@ This workflow demonstrates how employee salary requests are evaluated and proces
 ```
 ## 🎥 Demo Video
 
-[![Watch Demo]([https://img.youtube.com/vi/YOUR_VIDEO_ID/0.jpg)](https://www.youtube.com/watch?v=YOUR_VIDEO_ID](https://drive.google.com/file/d/1_ymiwgur5uEB8hFKJ_1cF4uE2Mawlf1a/view?usp=sharing))
+[Watch Demo](https://drive.google.com/file/d/1_ymiwgur5uEB8hFKJ_1cF4uE2Mawlf1a/view)
 
 ⏱️ **Note:** For faster review, please watch at **1.5x speed**.
